@@ -1,0 +1,10 @@
+group_type,group_value,total_rows,valid_predictions,correct_yes,incorrect_no,accuracy
+overall,all,40,40,39,1,97.50%
+model,GPT-4.1,20,20,20,0,100.00%
+model,GPT-4.1 mini,20,20,19,1,95.00%
+condition,claim_only,20,20,19,1,95.00%
+condition,claim_plus_evidence,20,20,20,0,100.00%
+model_condition,GPT-4.1 | claim_only,10,10,10,0,100.00%
+model_condition,GPT-4.1 | claim_plus_evidence,10,10,10,0,100.00%
+model_condition,GPT-4.1 mini | claim_only,10,10,9,1,90.00%
+model_condition,GPT-4.1 mini | claim_plus_evidence,10,10,10,0,100.00%

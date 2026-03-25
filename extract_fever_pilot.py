@@ -2,7 +2,7 @@ import csv
 import json
 
 INPUT_PATH = "shared_task_dev.jsonl"
-OUTPUT_PATH = "fever_pilot_sample.csv"
+OUTPUT_PATH = "fever_pilot.csv"
 
 LABEL_MAP = {"SUPPORTS": "Supported", "REFUTES": "Refuted"}
 
