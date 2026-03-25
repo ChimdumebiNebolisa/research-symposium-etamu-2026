@@ -1,77 +1,109 @@
-# FEVER Fact-Checking Experiment (Symposium Project)
+# FEVER Fact-Checking With and Without Evidence
 
-## What this project is testing
+## Plain-English overview
 
-This project asks a simple question:
+This project tests whether language models get better at fact-checking when you give them the *correct evidence*, and whether they still make mistakes anyway.
 
-Do language models get better at fact-checking when they are given correct evidence, and do they still make mistakes anyway?
+The dataset source is **FEVER development data**.
 
-To test that, each claim is run in two settings:
-- one where the model sees only the claim
-- one where the model sees the claim plus trusted gold evidence
+## Research question
+
+When a model is asked to judge a claim:
+
+- Does accuracy improve when we provide the gold evidence text?
+- Even with correct evidence, what kinds of mistakes still happen?
+
+## Why this matters
+
+If evidence helps a lot, that supports the idea that fact-checking tools should focus on retrieving and showing reliable evidence.  
+If errors still happen with correct evidence, that means we also need to understand model failure modes (not just better retrieval).
 
 ## How the experiment works
 
-1. Take examples from FEVER development data.
-2. Keep only claims labeled `Supported` or `Refuted`.
-3. Build a source tracker with claim text, label, and evidence pointers.
-4. Resolve the first evidence pointer into readable sentence text (`gold_evidence`).
-5. Expand each source claim into 4 runs:
-   - GPT-4.1 + claim_only
-   - GPT-4.1 + claim_plus_evidence
-   - GPT-4.1 mini + claim_only
-   - GPT-4.1 mini + claim_plus_evidence
-6. Run prompts and store model outputs.
-7. Score each run as correct or incorrect and summarize results.
+- **Claim**: a short statement that is either true or false.
+- **Evidence**: a trusted sentence from FEVER’s linked Wikipedia evidence (“gold evidence”).
+- **Labels (ground truth)**:
+  - **Supported**: the claim is true based on the gold evidence.
+  - **Refuted**: the claim is false based on the gold evidence.
+- **Conditions (what the model sees)**:
+  - **claim_only**: the model sees only the claim.
+  - **claim_plus_evidence**: the model sees the claim + the gold evidence sentence.
+- **Models tested (same runs, same prompts, different models)**:
+  - **GPT-4.1**
+  - **GPT-4.1 mini**
 
-## Label meanings
+Each source example is expanded into **4 runs** (2 models × 2 conditions).
 
-- `Supported`: the claim is true based on the gold evidence.
-- `Refuted`: the claim is false based on the gold evidence.
+## Current pipeline
 
-## Condition meanings
+- **Source extraction**: sample FEVER dev examples (Supported/Refuted only) into a source CSV.
+- **Evidence resolution**: turn the first FEVER evidence pointer into readable `gold_evidence` text using local wiki shards.
+- **Experiment expansion**: expand each source row into the 4 runs (models × conditions).
+- **Model evaluation**: run a simple prompt that outputs only `Supported` or `Refuted`, save outputs and correctness.
+- **Summary analysis**: compute accuracy overall and by model/condition.
 
-- `claim_only`: model sees only the claim text.
-- `claim_plus_evidence`: model sees the claim text and the gold evidence sentence.
+## Current progress
 
-## Model variants
+- **Earlier pilot (completed)**: a small 10-example / 40-run pilot was run earlier to confirm the pipeline works.
+- **Main current result (focus)**: the cleaned larger run below is the current source of truth.
 
-- `GPT-4.1`: larger model variant.
-- `GPT-4.1 mini`: smaller/faster variant.
+Data cleaning note:
+- One source example had unresolved evidence due to a wiki page title mismatch/missing page:
+  - **Dropped example_id `197381`** (Simón Bolívar page title issue) so the cleaned dataset stayed consistent.
 
-## Current Pipeline Status
+## Latest results (cleaned larger run)
 
-The core pipeline is working end-to-end for the pilot:
-- FEVER sampling done
-- source examples selected
-- evidence resolved into readable text
-- experiment runs expanded
-- model outputs collected
-- summary generated
+Cleaned large run size:
+- **99 source examples**
+- **396 total runs**
+- **371 correct**
+- **93.69% overall accuracy**
 
-## Current Progress
+Accuracy by condition:
+- **claim_only**: **89.90%** (178/198)
+- **claim_plus_evidence**: **97.47%** (193/198)
 
-Current completed run (10 source examples -> 40 total runs):
-- Total runs: 40
-- Valid predictions: 40
-- Correct: 39
-- Overall accuracy: 97.5%
-- Incorrect cases: 1
-  - `example_id`: 89891
-  - claim: "Damon Albarn's debut album was released in 2011."
-  - gold label: `Refuted`
-  - model: `GPT-4.1 mini`
-  - condition: `claim_only`
-  - model output: `Supported`
+Accuracy by model:
+- **GPT-4.1**: **93.94%** (186/198)
+- **GPT-4.1 mini**: **93.43%** (185/198)
 
-## What this result suggests
+Accuracy by model + condition:
+- **GPT-4.1 | claim_only**: **91.92%**
+- **GPT-4.1 | claim_plus_evidence**: **95.96%**
+- **GPT-4.1 mini | claim_only**: **87.88%**
+- **GPT-4.1 mini | claim_plus_evidence**: **98.99%**
 
-In this small pilot, giving evidence appears to help consistency: the only mistake happened in `claim_only`, while all `claim_plus_evidence` runs were correct.
+## Key takeaways (careful interpretation)
 
-## Important limitation
+- **Fact:** Adding correct evidence improves accuracy a lot in this run (89.90% → 97.47%).
+- **Fact:** Errors still happen even with correct evidence (there are still incorrect rows under `claim_plus_evidence`).
+- **Interpretation (tentative):** The smaller model (**GPT-4.1 mini**) appears to benefit more from evidence, because its `claim_only` accuracy is lower and its `claim_plus_evidence` accuracy is very high.
 
-This is still a small sample, so the result is promising but not enough to make a strong conclusion yet.
+## Limitations
 
-## Next Step
+- This is still a limited sample from FEVER dev, so don’t treat these numbers as a final conclusion.
+- Evidence resolution currently uses the **first** FEVER evidence pointer (not all evidence sentences).
+- Some “errors” may be driven by ambiguous wording in claims, evidence phrasing, or edge cases in FEVER.
 
-Scale to a much larger balanced sample (Supported/Refuted), keep the same experiment design, and continue reporting results as the dataset grows.
+## Next step
+
+Do error analysis on the failed rows from the cleaned large run:
+- Start with `experiment_results_large_v1_clean.csv`
+- Filter to rows where `correct == "No"`
+- Group mistakes by pattern (examples: date errors, negation, entity mix-ups, ignoring evidence, etc.)
+
+## Project file overview (practical)
+
+Main cleaned large-run artifacts:
+- `fever_large_v1_source_clean.csv`: the 99 source claims (Supported/Refuted only)
+- `resolved_gold_evidence_large_v1_clean.csv`: source rows + resolved `gold_evidence` (cleaned)
+- `experiment_runs_large_v1_clean.csv`: expanded 396 runs (models × conditions)
+- `experiment_results_large_v1_clean.csv`: model outputs + correctness for the 396 runs
+- `experiment_summary_large_v1_clean.csv`: accuracy breakdowns used in the numbers above
+
+Key scripts:
+- `extract_fever_balanced_sample.py`: build a balanced FEVER sample
+- `resolve_gold_evidence.py`: resolve gold evidence sentences from local wiki shards
+- `expand_experiment_runs.py`: expand sources into runs
+- `run_fact_check_experiment.py`: run the evaluation prompt and save results
+- `analyze_experiment_results.py`: summarize results into a small CSV
