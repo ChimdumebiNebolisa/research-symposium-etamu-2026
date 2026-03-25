@@ -1,0 +1,11 @@
+Field,Description
+example_id,unique identifier for each tested example
+claim,factual claim being evaluated
+gold_label,correct label based on gold evidence
+gold_evidence,trusted evidence used to evaluate the claim
+model,AI model tested
+condition,whether the model saw only the claim or the claim plus evidence
+model_output,model’s predicted label
+correct,whether prediction matches gold label
+error_type,category of error when prediction is wrong
+notes,extra observations

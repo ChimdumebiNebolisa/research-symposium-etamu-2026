@@ -1,0 +1,11 @@
+example_id,claim,gold_label,first_evidence_page,first_evidence_sentence_idx
+137334,Fox 2000 Pictures released the film Soul Food.,Supported,Soul_Food_-LRB-film-RRB-,0
+181634,There is a capital called Mogadishu.,Supported,Mogadishu,0
+204361,The Cretaceous ended.,Supported,Cretaceous,8
+105095,Nicholas Brody is a character on Homeland.,Supported,Nicholas_Brody,1
+192714,CBS is the network that aired The Millers.,Supported,The_Millers,1
+111897,Telemundo is a English-language television network.,Refuted,Telemundo,0
+89891,Damon Albarn's debut album was released in 2011.,Refuted,Damon_Albarn,17
+219028,Savages was exclusively a German film.,Refuted,Savages_-LRB-2012_film-RRB-,3
+108281,Andrew Kevin Walker is only Chinese.,Refuted,Andrew_Kevin_Walker,0
+54168,Murda Beatz's real name is Marshall Mathers.,Refuted,Murda_Beatz,0
