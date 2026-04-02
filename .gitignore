@@ -1,2 +1,5 @@
 wiki-pages/
 .env
+
+# Local API smoke-test outputs (optional; do not commit)
+*_smoke_test.csv

@@ -1,9 +1,11 @@
-import csv
-from collections import defaultdict
 import argparse
+import csv
+import os
+import sys
+from collections import defaultdict
 
-INPUT_PATH = "experiment_results.csv"
-OUTPUT_PATH = "experiment_summary.csv"
+INPUT_PATH = "experiment_results_large_v1_clean.csv"
+OUTPUT_PATH = "experiment_summary_large_v1_clean.csv"
 
 
 def pct(numerator, denominator):
@@ -68,6 +70,15 @@ def main():
     parser.add_argument("--input", default=INPUT_PATH, help="Input experiment results CSV")
     parser.add_argument("--output", default=OUTPUT_PATH, help="Output summary CSV")
     args = parser.parse_args()
+
+    if not os.path.isfile(args.input):
+        print(f"Input file not found: {args.input}", file=sys.stderr)
+        print(
+            "Run `python run_fact_check_experiment.py` first (it writes the results CSV), "
+            "or pass an existing file with --input.",
+            file=sys.stderr,
+        )
+        sys.exit(1)
 
     with open(args.input, encoding="utf-8", newline="") as f:
         rows = list(csv.DictReader(f))

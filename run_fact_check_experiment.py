@@ -1,6 +1,8 @@
 """
-Run fact-check prompts for each row in experiment_runs.csv via OpenAI API.
-Reads OPENAI_API_KEY from the environment. Writes experiment_results.csv incrementally.
+Run fact-check prompts for each row in an experiment runs CSV via OpenAI API.
+Reads OPENAI_API_KEY from the environment or .env. Writes results incrementally.
+
+Defaults match the cleaned large-run artifacts documented in README.md.
 """
 
 import csv
@@ -9,8 +11,8 @@ import re
 import sys
 import argparse
 
-INPUT_PATH = "experiment_runs.csv"
-OUTPUT_PATH = "experiment_results.csv"
+INPUT_PATH = "experiment_runs_large_v1_clean.csv"
+OUTPUT_PATH = "experiment_results_large_v1_clean.csv"
 
 MODEL_MAP = {
     "GPT-4.1": "gpt-4.1",
@@ -121,6 +123,16 @@ def main():
 
     script_dir = os.path.dirname(os.path.abspath(__file__))
     os.chdir(script_dir)
+
+    if not os.path.isfile(args.input):
+        print(f"Input file not found: {args.input}", file=sys.stderr)
+        print(
+            "This repo's expanded runs file is usually "
+            "`experiment_runs_large_v1_clean.csv`. "
+            "Pass --input <path> if your file has another name.",
+            file=sys.stderr,
+        )
+        sys.exit(1)
 
     def load_api_key():
         # 1) Prefer the environment (usual production/workstation pattern).

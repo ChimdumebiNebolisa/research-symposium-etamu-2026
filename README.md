@@ -105,5 +105,7 @@ Key scripts:
 - `extract_fever_balanced_sample.py`: build a balanced FEVER sample
 - `resolve_gold_evidence.py`: resolve gold evidence sentences from local wiki shards
 - `expand_experiment_runs.py`: expand sources into runs
-- `run_fact_check_experiment.py`: run the evaluation prompt and save results
-- `analyze_experiment_results.py`: summarize results into a small CSV
+- `run_fact_check_experiment.py`: run the evaluation prompt and save results (defaults: `experiment_runs_large_v1_clean.csv` → `experiment_results_large_v1_clean.csv`; override with `--input` / `--output`)
+- `analyze_experiment_results.py`: summarize results into a small CSV (defaults to the same `*_large_v1_clean` filenames)
+
+**Resume / usage:** If `experiment_results_large_v1_clean.csv` already has valid `Supported`/`Refuted` rows for every run, a plain `python run_fact_check_experiment.py` will print `New API calls this run: 0` (nothing left to fetch). To force fresh API calls for testing, use a new output path, e.g. `python run_fact_check_experiment.py --output experiment_results_smoke_test.csv`, then analyze that file with `python analyze_experiment_results.py --input experiment_results_smoke_test.csv --output experiment_summary_smoke_test.csv`.
