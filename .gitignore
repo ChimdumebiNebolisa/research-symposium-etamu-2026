@@ -1,5 +1,9 @@
 wiki-pages/
 .env
+.venv/
+.vscode/
+__pycache__/
+*.pyc
 
 # Local API smoke-test outputs (optional; do not commit)
 *_smoke_test.csv
