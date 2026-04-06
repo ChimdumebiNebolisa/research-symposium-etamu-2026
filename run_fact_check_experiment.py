@@ -11,13 +11,10 @@ import re
 import sys
 import argparse
 
-INPUT_PATH = "experiment_runs_large_v1_clean.csv"
-OUTPUT_PATH = "experiment_results_large_v1_clean.csv"
+from experiment_config import DEFAULT_TAG, MODEL_API_NAMES, VALID_LABELS
 
-MODEL_MAP = {
-    "GPT-4.1": "gpt-4.1",
-    "GPT-4.1 mini": "gpt-4.1-mini",
-}
+INPUT_PATH = f"experiment_runs_{DEFAULT_TAG}.csv"
+OUTPUT_PATH = f"experiment_results_{DEFAULT_TAG}.csv"
 
 PROMPT_CLAIM_ONLY = """Classify the claim as Supported or Refuted.
 Output only one word: Supported or Refuted.
@@ -30,21 +27,39 @@ Output only one word: Supported or Refuted.
 Claim: {claim}
 Evidence: {gold_evidence}"""
 
-VALID_LABELS = ("Supported", "Refuted")
 NOTE_MAX = 800
 
 
 def row_key(row):
     return (
-        str(row.get("example_id", "")).strip(),
+        str(row.get("claim_id") or row.get("example_id") or "").strip(),
         str(row.get("model", "")).strip(),
         str(row.get("condition", "")).strip(),
     )
 
 
+def preflight_validate_rows(rows):
+    missing = []
+    for row in rows:
+        condition = (row.get("condition") or "").strip()
+        if condition != "claim_plus_evidence":
+            continue
+        if (row.get("gold_evidence") or "").strip():
+            continue
+        missing.append(row.get("claim_id") or row.get("example_id") or "")
+
+    if missing:
+        preview = ", ".join(str(x) for x in missing[:10])
+        raise SystemExit(
+            "Missing gold_evidence for claim_plus_evidence rows. "
+            "Resolve FEVER evidence first (and ensure wiki shards are prepared). "
+            f"Missing count={len(missing)} preview=[{preview}]"
+        )
+
+
 def build_prompt(row):
     condition = (row.get("condition") or "").strip()
-    claim = row.get("claim") or ""
+    claim = row.get("claim_text") or row.get("claim") or ""
     evidence = row.get("gold_evidence") or ""
     if condition == "claim_only":
         return PROMPT_CLAIM_ONLY.format(claim=claim)
@@ -128,7 +143,7 @@ def main():
         print(f"Input file not found: {args.input}", file=sys.stderr)
         print(
             "This repo's expanded runs file is usually "
-            "`experiment_runs_large_v1_clean.csv`. "
+            f"`{INPUT_PATH}`. "
             "Pass --input <path> if your file has another name.",
             file=sys.stderr,
         )
@@ -196,6 +211,8 @@ def main():
             raise SystemExit("Input CSV has no header.")
         rows_in = list(reader)
 
+    preflight_validate_rows(rows_in)
+
     by_key = load_all_by_key(args.output)
     results = []
     reused = 0
@@ -222,10 +239,11 @@ def main():
                 )
                 continue
 
-        api_model = MODEL_MAP.get((base.get("model") or "").strip())
+        api_model = MODEL_API_NAMES.get((base.get("model") or "").strip())
         if not api_model:
             row["model_output"] = ""
             row["correct"] = "No"
+            row["error_type"] = "invalid_model_name"
             row["notes"] = f"invalid_model_name:{base.get('model')!r}"[:NOTE_MAX]
             results.append(row)
             print(f"[{i + 1}/{len(rows_in)}] error: unknown model {base.get('model')!r}")
@@ -237,6 +255,7 @@ def main():
         except ValueError as e:
             row["model_output"] = ""
             row["correct"] = "No"
+            row["error_type"] = "invalid_condition"
             row["notes"] = str(e)[:NOTE_MAX]
             results.append(row)
             print(f"[{i + 1}/{len(rows_in)}] error: {e}")
@@ -256,6 +275,7 @@ def main():
         except Exception as e:
             row["model_output"] = ""
             row["correct"] = "No"
+            row["error_type"] = "api_error"
             row["notes"] = f"api_error:{type(e).__name__}:{e}"[:NOTE_MAX]
             results.append(row)
             print(f"  -> API failure: {e}")
@@ -263,19 +283,26 @@ def main():
             continue
 
         label, bad_raw = normalize_label(raw_content)
-        gold = (row.get("gold_label") or "").strip()
+        gold = (row.get("true_label") or row.get("gold_label") or "").strip()
 
         if label is None:
             row["model_output"] = ""
             row["correct"] = "No"
+            row["error_type"] = "invalid_model_output"
             snippet = (bad_raw or raw_content)[:NOTE_MAX]
             row["notes"] = f"invalid_model_output:{snippet}"
         else:
             row["model_output"] = label
             row["correct"] = "Yes" if label == gold else "No"
             row["notes"] = ""
-
-        row["error_type"] = ""
+            if row["correct"] == "Yes":
+                row["error_type"] = ""
+            elif gold == "Supported" and label == "Refuted":
+                row["error_type"] = "supported_to_refuted"
+            elif gold == "Refuted" and label == "Supported":
+                row["error_type"] = "refuted_to_supported"
+            else:
+                row["error_type"] = "label_mismatch"
         results.append(row)
         by_key[k] = row
         safe_raw = raw_content.encode("ascii", "backslashreplace").decode("ascii")
