@@ -12,6 +12,18 @@ METRICS_PATH = f"experiment_metrics_{DEFAULT_TAG}.csv"
 EVIDENCE_ERRORS_PATH = f"evidence_condition_errors_{DEFAULT_TAG}.csv"
 TAXONOMY_COUNTS_PATH = f"error_taxonomy_counts_{DEFAULT_TAG}.csv"
 EXAMPLE_FAILURES_PATH = f"example_failure_cases_{DEFAULT_TAG}.csv"
+MANUAL_ANNOTATION_PATH = f"manual_annotations_evidence_failures_{DEFAULT_TAG}.csv"
+
+TAXONOMY_LABELS = (
+    "evidence_neglect",
+    "evidence_misinterpretation",
+    "multi_sentence_integration_failure",
+    "negation_or_contradiction_failure",
+    "numerical_or_comparative_failure",
+    "entity_or_attribute_confusion",
+    "distractor_susceptibility",
+    "other_or_ambiguous",
+)
 
 
 def pct(numerator, denominator):
@@ -88,6 +100,27 @@ def evidence_error_taxonomy(row):
     return "other_error"
 
 
+def get_raw_model_output(row):
+    candidate_fields = (
+        "raw_model_output",
+        "raw_output",
+        "raw_response",
+        "response_text",
+        "model_response",
+        "response",
+    )
+    for field in candidate_fields:
+        value = (row.get(field) or "").strip()
+        if value:
+            return value
+
+    notes = (row.get("notes") or "").strip()
+    prefix = "invalid_model_output:"
+    if notes.startswith(prefix):
+        return notes[len(prefix) :].strip()
+    return ""
+
+
 def main():
     parser = argparse.ArgumentParser(
         description="Analyze experiment results and write grouped summary CSV."
@@ -113,6 +146,11 @@ def main():
         "--example-failures-output",
         default=EXAMPLE_FAILURES_PATH,
         help="Output CSV for 2-4 example failure cases",
+    )
+    parser.add_argument(
+        "--manual-annotation-output",
+        default=MANUAL_ANNOTATION_PATH,
+        help="Output CSV for manual coding of claim_plus_evidence failures",
     )
     parser.add_argument(
         "--example-failures-max",
@@ -347,6 +385,39 @@ def main():
                 }
             )
 
+    manual_annotation_fields = [
+        "claim_id",
+        "claim",
+        "true_label",
+        "predicted_label",
+        "model",
+        "gold_evidence",
+        "raw_model_output",
+        "taxonomy_label",
+        "taxonomy_notes",
+    ]
+    with open(args.manual_annotation_output, "w", encoding="utf-8", newline="") as out:
+        w = csv.DictWriter(out, fieldnames=manual_annotation_fields)
+        w.writeheader()
+        for r in evidence_condition_errors:
+            taxonomy_label = (r.get("taxonomy_label") or "").strip()
+            if taxonomy_label not in TAXONOMY_LABELS:
+                taxonomy_label = ""
+
+            w.writerow(
+                {
+                    "claim_id": r.get("claim_id") or r.get("example_id") or "",
+                    "claim": r.get("claim_text") or r.get("claim") or "",
+                    "true_label": r.get("true_label") or r.get("gold_label") or "",
+                    "predicted_label": r.get("model_output") or "",
+                    "model": r.get("model") or "",
+                    "gold_evidence": r.get("gold_evidence") or "",
+                    "raw_model_output": get_raw_model_output(r),
+                    "taxonomy_label": taxonomy_label,
+                    "taxonomy_notes": r.get("taxonomy_notes") or r.get("notes") or "",
+                }
+            )
+
     taxonomy_counts = defaultdict(int)
     for r in evidence_condition_errors:
         model = (r.get("model") or "").strip()
@@ -396,6 +467,7 @@ def main():
     print(f"Wrote {args.evidence_errors_output}")
     print(f"Wrote {args.taxonomy_output}")
     print(f"Wrote {args.example_failures_output}")
+    print(f"Wrote {args.manual_annotation_output}")
 
 if __name__ == "__main__":
     main()
