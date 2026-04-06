@@ -1,0 +1,47 @@
+{
+  "input_csv": "experiment_tracker_balanced_1000_v1.csv",
+  "output_csv": "experiment_tracker_with_evidence_balanced_1000_v1.csv",
+  "wiki_pattern": "wiki-pages\\wiki-pages\\wiki-*.jsonl",
+  "drop_unresolved": false,
+  "input_rows": 1000,
+  "written_rows": 1000,
+  "unresolved_count": 9,
+  "unresolved_preview": [
+    {
+      "claim_id": "197364",
+      "note": "missing_wiki_page:Simo\u0301n_Boli\u0301var"
+    },
+    {
+      "claim_id": "108345",
+      "note": "missing_wiki_page:Raven-Symone\u0301"
+    },
+    {
+      "claim_id": "150765",
+      "note": "missing_wiki_page:Pene\u0301lope_Cruz"
+    },
+    {
+      "claim_id": "197376",
+      "note": "missing_wiki_page:Simo\u0301n_Boli\u0301var"
+    },
+    {
+      "claim_id": "152694",
+      "note": "missing_wiki_page:Ricardo_Montalba\u0301n"
+    },
+    {
+      "claim_id": "10688",
+      "note": "missing_wiki_page:Cle\u0301opa\u0302tre"
+    },
+    {
+      "claim_id": "86635",
+      "note": "missing_wiki_page:Janelle_Mona\u0301e"
+    },
+    {
+      "claim_id": "192193",
+      "note": "missing_wiki_page:Sacre\u0301-C\u0153ur,_Paris"
+    },
+    {
+      "claim_id": "197373",
+      "note": "missing_wiki_page:Simo\u0301n_Boli\u0301var"
+    }
+  ]
+}
