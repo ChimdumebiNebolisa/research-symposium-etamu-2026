@@ -1,111 +1,216 @@
-# FEVER Fact-Checking With and Without Evidence
+# FEVER Fact-Checking With and Without Evidence (2026 Setup)
 
-## Plain-English overview
+This repository now targets a FEVER-only experiment with a strict, balanced design:
 
-This project tests whether language models get better at fact-checking when you give them the *correct evidence*, and whether they still make mistakes anyway.
+- Source data: `shared_task_dev.jsonl` (FEVER dev)
+- Labels included: `Supported` and `Refuted` only
+- Labels excluded: `NOT ENOUGH INFO`
+- Full dataset size: 1000 claims total (500 Supported, 500 Refuted)
+- Conditions: `claim_only`, `claim_plus_evidence`
+- Models: `gpt-5.4`, `gpt-5.4-mini`
 
-The dataset source is **FEVER development data**.
+Each source claim expands to 4 runs (2 models x 2 conditions).
 
-## Research question
+## Core scripts
 
-When a model is asked to judge a claim:
+- `experiment_config.py`: shared constants (models, conditions, target counts, default tag)
+- `prepare_fever_wiki_pages.py`: downloads and prepares FEVER wiki shards
+- `extract_fever_balanced_sample.py`: reproducible balanced FEVER sampling + provenance artifacts
+- `resolve_gold_evidence.py`: resolves first FEVER evidence pointer to `gold_evidence`
+- `expand_experiment_runs.py`: strict dataset validation + run expansion
+- `create_pilot_runs_subset.py`: creates a small pilot run CSV from full expanded runs
+- `run_fact_check_experiment.py`: OpenAI execution with resumable incremental writes
+- `analyze_experiment_results.py`: grouped accuracy plus required metrics
 
-- Does accuracy improve when we provide the gold evidence text?
-- Even with correct evidence, what kinds of mistakes still happen?
+## Canonical row fields
 
-## Why this matters
+The pipeline now carries canonical columns:
 
-If evidence helps a lot, that supports the idea that fact-checking tools should focus on retrieving and showing reliable evidence.  
-If errors still happen with correct evidence, that means we also need to understand model failure modes (not just better retrieval).
+- `claim_id`
+- `claim_text`
+- `true_label`
+- `gold_evidence`
 
-## How the experiment works
+Legacy alias columns (`example_id`, `claim`, `gold_label`) are still written for backward compatibility.
 
-- **Claim**: a short statement that is either true or false.
-- **Evidence**: a trusted sentence from FEVER’s linked Wikipedia evidence (“gold evidence”).
-- **Labels (ground truth)**:
-  - **Supported**: the claim is true based on the gold evidence.
-  - **Refuted**: the claim is false based on the gold evidence.
-- **Conditions (what the model sees)**:
-  - **claim_only**: the model sees only the claim.
-  - **claim_plus_evidence**: the model sees the claim + the gold evidence sentence.
-- **Models tested (same runs, same prompts, different models)**:
-  - **GPT-4.1**
-  - **GPT-4.1 mini**
+## Required metrics
 
-Each source example is expanded into **4 runs** (2 models × 2 conditions).
+The analysis script writes:
 
-## Current pipeline
+- Accuracy by model-condition pair
+- Evidence gain per model: `accuracy(claim_plus_evidence) - accuracy(claim_only)`
+- Evidence Failure Rate (EFR) per model in `claim_plus_evidence`:
+  - incorrect predictions / valid predictions under evidence condition
 
-- **Source extraction**: sample FEVER dev examples (Supported/Refuted only) into a source CSV.
-- **Evidence resolution**: turn the first FEVER evidence pointer into readable `gold_evidence` text using local wiki shards.
-- **Experiment expansion**: expand each source row into the 4 runs (models × conditions).
-- **Model evaluation**: run a simple prompt that outputs only `Supported` or `Refuted`, save outputs and correctness.
-- **Summary analysis**: compute accuracy overall and by model/condition.
+Artifacts:
 
-## Current progress
+- `experiment_summary_<tag>.csv`
+- `experiment_metrics_<tag>.csv`
 
-- **Earlier pilot (completed)**: a small 10-example / 40-run pilot was run earlier to confirm the pipeline works.
-- **Main current result (focus)**: the cleaned larger run below is the current source of truth.
+## Standard full workflow (1000 claims)
 
-Data cleaning note:
-- One source example had unresolved evidence due to a wiki page title mismatch/missing page:
-  - **Dropped example_id `197381`** (Simón Bolívar page title issue) so the cleaned dataset stayed consistent.
+0. Prepare FEVER wiki shards first:
 
-## Latest results (cleaned larger run)
+```powershell
+python prepare_fever_wiki_pages.py
+```
 
-Cleaned large run size:
-- **99 source examples**
-- **396 total runs**
-- **371 correct**
-- **93.69% overall accuracy**
+If remote download is blocked, provide a local archive path:
 
-Accuracy by condition:
-- **claim_only**: **89.90%** (178/198)
-- **claim_plus_evidence**: **97.47%** (193/198)
+```powershell
+python prepare_fever_wiki_pages.py --archive path\to\wiki-pages.zip
+```
 
-Accuracy by model:
-- **GPT-4.1**: **93.94%** (186/198)
-- **GPT-4.1 mini**: **93.43%** (185/198)
+1. Extract a balanced source set:
 
-Accuracy by model + condition:
-- **GPT-4.1 | claim_only**: **91.92%**
-- **GPT-4.1 | claim_plus_evidence**: **95.96%**
-- **GPT-4.1 mini | claim_only**: **87.88%**
-- **GPT-4.1 mini | claim_plus_evidence**: **98.99%**
+```powershell
+python extract_fever_balanced_sample.py
+```
 
-## Key takeaways (careful interpretation)
+Default outputs:
 
-- **Fact:** Adding correct evidence improves accuracy a lot in this run (89.90% → 97.47%).
-- **Fact:** Errors still happen even with correct evidence (there are still incorrect rows under `claim_plus_evidence`).
-- **Interpretation (tentative):** The smaller model (**GPT-4.1 mini**) appears to benefit more from evidence, because its `claim_only` accuracy is lower and its `claim_plus_evidence` accuracy is very high.
+- `fever_balanced_1000_v1_source.csv`
+- `experiment_tracker_balanced_1000_v1.csv`
+- `sample_provenance_balanced_1000_v1.csv`
+- `sample_validation_balanced_1000_v1.json`
 
-## Limitations
+2. Resolve FEVER evidence text (requires local FEVER wiki shards):
 
-- This is still a limited sample from FEVER dev, so don’t treat these numbers as a final conclusion.
-- Evidence resolution currently uses the **first** FEVER evidence pointer (not all evidence sentences).
-- Some “errors” may be driven by ambiguous wording in claims, evidence phrasing, or edge cases in FEVER.
+```powershell
+python resolve_gold_evidence.py
+```
 
-## Next step
+Default outputs:
 
-Do error analysis on the failed rows from the cleaned large run:
-- Start with `experiment_results_large_v1_clean.csv`
-- Filter to rows where `correct == "No"`
-- Group mistakes by pattern (examples: date errors, negation, entity mix-ups, ignoring evidence, etc.)
+- `experiment_tracker_with_evidence_balanced_1000_v1.csv`
+- `resolve_summary_balanced_1000_v1.json`
 
-## Project file overview (practical)
+3. Validate dataset readiness and expand runs:
 
-Main cleaned large-run artifacts:
-- `fever_large_v1_source_clean.csv`: the 99 source claims (Supported/Refuted only)
-- `resolved_gold_evidence_large_v1_clean.csv`: source rows + resolved `gold_evidence` (cleaned)
-- `experiment_runs_large_v1_clean.csv`: expanded 396 runs (models × conditions)
-- `experiment_results_large_v1_clean.csv`: model outputs + correctness for the 396 runs
-- `experiment_summary_large_v1_clean.csv`: accuracy breakdowns used in the numbers above
+```powershell
+python expand_experiment_runs.py
+```
 
-Key scripts:
-- `extract_fever_balanced_sample.py`: build a balanced FEVER sample
-- `resolve_gold_evidence.py`: resolve gold evidence sentences from local wiki shards
-- `expand_experiment_runs.py`: expand sources into runs
-- `run_fact_check_experiment.py`: run the evaluation prompt and save results (defaults: `experiment_runs_large_v1_clean.csv` → `experiment_results_large_v1_clean.csv`; override with `--input` / `--output`)
-- `analyze_experiment_results.py`: summarize results into a small CSV (defaults to the same `*_large_v1_clean` filenames)
+Default outputs:
 
-**Resume / usage:** If `experiment_results_large_v1_clean.csv` already has valid `Supported`/`Refuted` rows for every run, a plain `python run_fact_check_experiment.py` will print `New API calls this run: 0` (nothing left to fetch). To force fresh API calls for testing, use a new output path, e.g. `python run_fact_check_experiment.py --output experiment_results_smoke_test.csv`, then analyze that file with `python analyze_experiment_results.py --input experiment_results_smoke_test.csv --output experiment_summary_smoke_test.csv`.
+- `dataset_validation_balanced_1000_v1.json`
+- `experiment_runs_balanced_1000_v1.csv`
+
+Expansion aborts if rows are unusable, unbalanced, or not exactly 1000.
+
+4. Build a small pilot from the full expanded runs:
+
+```powershell
+python create_pilot_runs_subset.py --input experiment_runs_balanced_1000_v1.csv --output experiment_runs_balanced_1000_v1_pilot.csv --pilot-claims 50
+```
+
+5. Execute pilot model runs first:
+
+```powershell
+python run_fact_check_experiment.py --input experiment_runs_balanced_1000_v1_pilot.csv --output experiment_results_balanced_1000_v1_pilot.csv
+```
+
+6. Analyze pilot results:
+
+```powershell
+python analyze_experiment_results.py --input experiment_results_balanced_1000_v1_pilot.csv --output experiment_summary_balanced_1000_v1_pilot.csv --metrics-output experiment_metrics_balanced_1000_v1_pilot.csv
+```
+
+7. Execute full model runs after pilot succeeds:
+
+```powershell
+python run_fact_check_experiment.py
+```
+
+Default output:
+
+- `experiment_results_balanced_1000_v1.csv`
+
+8. Analyze full results and metrics:
+
+```powershell
+python analyze_experiment_results.py
+```
+
+Default outputs:
+
+- `experiment_summary_balanced_1000_v1.csv`
+- `experiment_metrics_balanced_1000_v1.csv`
+- `evidence_condition_errors_balanced_1000_v1.csv`
+- `error_taxonomy_counts_balanced_1000_v1.csv`
+- `example_failure_cases_balanced_1000_v1.csv`
+
+## Pilot workflow (separate outputs)
+
+Pilot is intentionally separated from full outputs:
+
+```powershell
+python extract_fever_balanced_sample.py --per-label 25 --seed 42 --tag balanced_50_pilot_v1
+python resolve_gold_evidence.py --input experiment_tracker_balanced_50_pilot_v1.csv --output experiment_tracker_with_evidence_balanced_50_pilot_v1.csv --summary-output resolve_summary_balanced_50_pilot_v1.json
+python expand_experiment_runs.py --input experiment_tracker_with_evidence_balanced_50_pilot_v1.csv --output experiment_runs_balanced_50_pilot_v1.csv --validation-output dataset_validation_balanced_50_pilot_v1.json --expected-total 50 --expected-per-label 25
+python run_fact_check_experiment.py --input experiment_runs_balanced_50_pilot_v1.csv --output experiment_results_balanced_50_pilot_v1.csv
+python analyze_experiment_results.py --input experiment_results_balanced_50_pilot_v1.csv --output experiment_summary_balanced_50_pilot_v1.csv --metrics-output experiment_metrics_balanced_50_pilot_v1.csv
+```
+
+## Completed run results (2026-04-05)
+
+The following runs were completed in this workspace under the `balanced_1000_v1` tag.
+
+### Pilot run (50 claims -> 200 rows)
+
+Accuracy by model-condition:
+
+- `gpt-5.4 | claim_only`: 92.00% (46/50)
+- `gpt-5.4 | claim_plus_evidence`: 94.00% (47/50)
+- `gpt-5.4-mini | claim_only`: 78.00% (39/50)
+- `gpt-5.4-mini | claim_plus_evidence`: 96.00% (48/50)
+
+Evidence gain / EFR:
+
+- `gpt-5.4`: evidence gain +2.00 pp, EFR 6.00%
+- `gpt-5.4-mini`: evidence gain +18.00 pp, EFR 4.00%
+
+Artifacts:
+
+- `experiment_results_balanced_1000_v1_pilot.csv`
+- `experiment_summary_balanced_1000_v1_pilot.csv`
+- `experiment_metrics_balanced_1000_v1_pilot.csv`
+- `evidence_condition_errors_balanced_1000_v1_pilot.csv`
+- `error_taxonomy_counts_balanced_1000_v1_pilot.csv`
+- `example_failure_cases_balanced_1000_v1_pilot.csv`
+
+### Full run (1000 claims -> 4000 rows)
+
+Accuracy by model-condition:
+
+- `gpt-5.4 | claim_only`: 86.30% (863/1000)
+- `gpt-5.4 | claim_plus_evidence`: 94.20% (942/1000)
+- `gpt-5.4-mini | claim_only`: 83.20% (832/1000)
+- `gpt-5.4-mini | claim_plus_evidence`: 93.40% (934/1000)
+
+Evidence gain / EFR:
+
+- `gpt-5.4`: evidence gain +7.90 pp, EFR 5.80%
+- `gpt-5.4-mini`: evidence gain +10.20 pp, EFR 6.60%
+
+Taxonomy counts (evidence-condition incorrect rows):
+
+- `gpt-5.4`: `supported_to_refuted=38`, `refuted_to_supported=20`
+- `gpt-5.4-mini`: `supported_to_refuted=37`, `refuted_to_supported=29`
+
+Artifacts:
+
+- `experiment_results_balanced_1000_v1.csv`
+- `experiment_summary_balanced_1000_v1.csv`
+- `experiment_metrics_balanced_1000_v1.csv`
+- `evidence_condition_errors_balanced_1000_v1.csv`
+- `error_taxonomy_counts_balanced_1000_v1.csv`
+- `example_failure_cases_balanced_1000_v1.csv`
+
+## Important dependency note
+
+Evidence resolution requires FEVER wiki shard files matching:
+
+- `wiki-pages/wiki-pages/wiki-*.jsonl`
+
+If these files are missing, evidence cannot be resolved, validation will fail for missing `gold_evidence`, and model execution should not proceed.
