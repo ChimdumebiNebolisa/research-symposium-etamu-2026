@@ -24,6 +24,10 @@ KEEP = (
     "claim",
     "gold_label",
     "gold_evidence",
+    "evidence_sentences_json",
+    "evidence_pages_json",
+    "evidence_set_size",
+    "evidence_set_id",
     "raw_evidence",
 )
 OUT_FIELDS = [
@@ -34,6 +38,10 @@ OUT_FIELDS = [
     "claim",
     "gold_label",
     "gold_evidence",
+    "evidence_sentences_json",
+    "evidence_pages_json",
+    "evidence_set_size",
+    "evidence_set_id",
     "raw_evidence",
     "model",
     "condition",
@@ -59,6 +67,10 @@ def normalize_source_row(row):
     out["claim"] = claim_text
     out["gold_label"] = true_label
     out["gold_evidence"] = gold_evidence
+    out["evidence_sentences_json"] = (row.get("evidence_sentences_json") or "").strip()
+    out["evidence_pages_json"] = (row.get("evidence_pages_json") or "").strip()
+    out["evidence_set_size"] = (row.get("evidence_set_size") or "").strip()
+    out["evidence_set_id"] = (row.get("evidence_set_id") or "").strip()
     out["raw_evidence"] = raw_evidence
     return out
 
