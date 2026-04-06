@@ -1,0 +1,5 @@
+model,taxonomy,count
+gpt-5.4,refuted_to_supported,20
+gpt-5.4,supported_to_refuted,38
+gpt-5.4-mini,refuted_to_supported,29
+gpt-5.4-mini,supported_to_refuted,37

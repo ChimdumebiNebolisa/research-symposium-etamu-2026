@@ -1,0 +1,10 @@
+group_type,group_value,total_rows,valid_predictions,correct_yes,incorrect_no,accuracy
+overall,all,4000,4000,3571,429,89.28%
+model,gpt-5.4,2000,2000,1805,195,90.25%
+model,gpt-5.4-mini,2000,2000,1766,234,88.30%
+condition,claim_only,2000,2000,1695,305,84.75%
+condition,claim_plus_evidence,2000,2000,1876,124,93.80%
+model_condition,gpt-5.4 | claim_only,1000,1000,863,137,86.30%
+model_condition,gpt-5.4 | claim_plus_evidence,1000,1000,942,58,94.20%
+model_condition,gpt-5.4-mini | claim_only,1000,1000,832,168,83.20%
+model_condition,gpt-5.4-mini | claim_plus_evidence,1000,1000,934,66,93.40%

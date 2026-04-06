@@ -1,0 +1,9 @@
+metric_name,model,condition,value,numerator,denominator
+accuracy,gpt-5.4,claim_only,86.30,863,1000
+accuracy,gpt-5.4,claim_plus_evidence,94.20,942,1000
+evidence_gain_pp,gpt-5.4,claim_plus_evidence_minus_claim_only,7.90,,
+evidence_failure_rate_percent,gpt-5.4,claim_plus_evidence,5.80,58,1000
+accuracy,gpt-5.4-mini,claim_only,83.20,832,1000
+accuracy,gpt-5.4-mini,claim_plus_evidence,93.40,934,1000
+evidence_gain_pp,gpt-5.4-mini,claim_plus_evidence_minus_claim_only,10.20,,
+evidence_failure_rate_percent,gpt-5.4-mini,claim_plus_evidence,6.60,66,1000
