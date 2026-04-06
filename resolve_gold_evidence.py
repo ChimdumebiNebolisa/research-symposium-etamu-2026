@@ -1,12 +1,14 @@
 """
-Resolve gold_evidence in a FEVER source CSV by using the first FEVER evidence pointer
-against local wiki-pages JSONL shards.
+Resolve gold_evidence in a FEVER source CSV by selecting one complete FEVER
+evidence set against local wiki-pages JSONL shards.
 """
 
 import csv
 import json
 import os
 import argparse
+import hashlib
+import unicodedata
 
 from experiment_config import DEFAULT_TAG, WIKI_SHARD_PATTERN, require_wiki_shards
 
@@ -15,10 +17,61 @@ INPUT_PATH = f"experiment_tracker_{DEFAULT_TAG}.csv"
 OUTPUT_PATH = f"experiment_tracker_with_evidence_{DEFAULT_TAG}.csv"
 
 
-def first_wiki_title_and_sentence_idx(evidence):
-    first_set = evidence[0]
-    first_item = first_set[0]
-    return first_item[2], first_item[3]
+def canonicalize_wiki_title(title):
+    return unicodedata.normalize("NFC", str(title).strip())
+
+
+def parse_pointer(item):
+    if not isinstance(item, list) or len(item) < 4:
+        raise ValueError("invalid_evidence_pointer")
+
+    title = item[2]
+    sent_idx = item[3]
+
+    if title is None or str(title).strip() == "":
+        raise ValueError("invalid_evidence_pointer_title")
+
+    try:
+        sent_idx = int(sent_idx)
+    except (TypeError, ValueError):
+        raise ValueError("invalid_evidence_pointer_sentence_index")
+
+    return canonicalize_wiki_title(title), sent_idx
+
+
+def parse_evidence_sets(raw_evidence):
+    evidence = json.loads(raw_evidence)
+    if not isinstance(evidence, list):
+        raise ValueError("invalid_raw_evidence_format")
+
+    parsed_sets = []
+    for set_idx, evidence_set in enumerate(evidence):
+        if not isinstance(evidence_set, list) or not evidence_set:
+            continue
+
+        pointers = []
+        for item in evidence_set:
+            title, sent_idx = parse_pointer(item)
+            pointers.append((title, sent_idx))
+
+        if pointers:
+            parsed_sets.append(
+                {
+                    "set_index": set_idx,
+                    "pointers": pointers,
+                }
+            )
+
+    if not parsed_sets:
+        raise ValueError("no_evidence_sets")
+
+    return parsed_sets
+
+
+def iter_needed_titles(evidence_sets):
+    for evidence_set in evidence_sets:
+        for title, _ in evidence_set["pointers"]:
+            yield title
 
 
 def sentence_text_from_lines(lines_str, idx):
@@ -30,9 +83,79 @@ def sentence_text_from_lines(lines_str, idx):
     return None
 
 
+def resolve_evidence_set(evidence_set, pages):
+    sentences = []
+    page_titles = []
+
+    for title, sent_idx in evidence_set["pointers"]:
+        doc = pages.get(title)
+        if doc is None:
+            return None, f"missing_wiki_page:{title}"
+
+        sentence = sentence_text_from_lines(doc.get("lines") or "", sent_idx)
+        if sentence is None:
+            return None, f"missing_sentence:{title}:{sent_idx}"
+
+        page_titles.append(title)
+        sentences.append(sentence)
+
+    payload = json.dumps(
+        {
+            "set_index": evidence_set["set_index"],
+            "pointers": [
+                {"page": page, "sent_idx": sent_idx}
+                for page, sent_idx in evidence_set["pointers"]
+            ],
+        },
+        ensure_ascii=False,
+        separators=(",", ":"),
+    )
+    set_id = "fever_set_" + hashlib.sha1(payload.encode("utf-8")).hexdigest()[:12]
+
+    resolved = {
+        "set_index": evidence_set["set_index"],
+        "sentences": sentences,
+        "pages": page_titles,
+        "set_size": len(sentences),
+        "set_id": set_id,
+    }
+    return resolved, ""
+
+
+def choose_shortest_complete_set(evidence_sets, pages):
+    best = None
+    first_failure = ""
+
+    for evidence_set in evidence_sets:
+        resolved, failure = resolve_evidence_set(evidence_set, pages)
+        if resolved is None:
+            if not first_failure:
+                first_failure = failure
+            continue
+
+        if best is None:
+            best = resolved
+            continue
+
+        if resolved["set_size"] < best["set_size"]:
+            best = resolved
+            continue
+
+        if (
+            resolved["set_size"] == best["set_size"]
+            and resolved["set_index"] < best["set_index"]
+        ):
+            best = resolved
+
+    if best is not None:
+        return best, ""
+
+    return None, first_failure or "no_complete_evidence_set"
+
+
 def load_wiki_by_id(wiki_paths, needed_ids):
     pages = {}
-    remaining = set(needed_ids)
+    remaining = {canonicalize_wiki_title(x) for x in needed_ids}
     for path in sorted(wiki_paths):
         with open(path, encoding="utf-8") as f:
             for line in f:
@@ -40,7 +163,7 @@ def load_wiki_by_id(wiki_paths, needed_ids):
                 if not line:
                     continue
                 doc = json.loads(line)
-                wid = doc.get("id")
+                wid = canonicalize_wiki_title(doc.get("id") or "")
                 if wid in remaining:
                     pages[wid] = doc
                     remaining.discard(wid)
@@ -51,7 +174,10 @@ def load_wiki_by_id(wiki_paths, needed_ids):
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Resolve first FEVER evidence pointer to readable gold evidence."
+        description=(
+            "Resolve one complete FEVER evidence set to readable gold evidence "
+            "(shortest complete set)."
+        )
     )
     parser.add_argument("--input", default=INPUT_PATH, help="Input source/tracker CSV path")
     parser.add_argument("--output", default=OUTPUT_PATH, help="Output resolved CSV path")
@@ -88,9 +214,11 @@ def main():
         for row in csv.DictReader(f):
             rows.append(row)
             raw = row.get("raw_evidence") or ""
-            evidence = json.loads(raw)
-            title, _ = first_wiki_title_and_sentence_idx(evidence)
-            needed_titles.add(title)
+            try:
+                evidence_sets = parse_evidence_sets(raw)
+                needed_titles.update(iter_needed_titles(evidence_sets))
+            except Exception:
+                continue
 
     try:
         wiki_paths = require_wiki_shards(args.wiki_pattern)
@@ -105,6 +233,14 @@ def main():
     fieldnames = list(rows[0].keys())
     if "gold_evidence" not in fieldnames:
         fieldnames = fieldnames + ["gold_evidence"]
+    if "evidence_sentences_json" not in fieldnames:
+        fieldnames = fieldnames + ["evidence_sentences_json"]
+    if "evidence_pages_json" not in fieldnames:
+        fieldnames = fieldnames + ["evidence_pages_json"]
+    if "evidence_set_size" not in fieldnames:
+        fieldnames = fieldnames + ["evidence_set_size"]
+    if "evidence_set_id" not in fieldnames:
+        fieldnames = fieldnames + ["evidence_set_id"]
     if "resolver_note" not in fieldnames:
         fieldnames = fieldnames + ["resolver_note"]
 
@@ -116,19 +252,29 @@ def main():
         note = ""
         raw = row.get("raw_evidence") or ""
         try:
-            evidence = json.loads(raw)
-            title, sent_idx = first_wiki_title_and_sentence_idx(evidence)
-            doc = pages.get(title)
-            if doc is None:
-                note = f"missing_wiki_page:{title}"
-            else:
-                text = sentence_text_from_lines(doc.get("lines") or "", sent_idx)
-                if text is None:
-                    note = f"missing_sentence:{title}:{sent_idx}"
-                else:
-                    out_row["gold_evidence"] = text
+            evidence_sets = parse_evidence_sets(raw)
+            chosen_set, note = choose_shortest_complete_set(evidence_sets, pages)
+            if chosen_set is not None:
+                out_row["evidence_sentences_json"] = json.dumps(
+                    chosen_set["sentences"],
+                    ensure_ascii=False,
+                )
+                out_row["evidence_pages_json"] = json.dumps(
+                    chosen_set["pages"],
+                    ensure_ascii=False,
+                )
+                out_row["evidence_set_size"] = str(chosen_set["set_size"])
+                out_row["evidence_set_id"] = chosen_set["set_id"]
+                # Keep backward compatibility by preserving gold_evidence as a prompt-ready string.
+                out_row["gold_evidence"] = " ".join(chosen_set["sentences"]).strip()
         except Exception as exc:
             note = f"bad_raw_evidence:{type(exc).__name__}"
+
+        if note:
+            out_row.setdefault("evidence_sentences_json", "")
+            out_row.setdefault("evidence_pages_json", "")
+            out_row.setdefault("evidence_set_size", "")
+            out_row.setdefault("evidence_set_id", "")
         out_row["resolver_note"] = note
 
         if note:
