@@ -279,7 +279,7 @@ No deployment configuration is present (no Dockerfile, compose file, CI pipeline
 - No packaged command interface; scripts are run directly.
 - .env is local and ignored; environment setup is manual.
 - FEVER wiki download may fail in some environments; local archive fallback is required.
-- resolve_summary_balanced_1000_v1.json reports unresolved_count=9 from one resolver run. Current full validation still reports usable_rows=1000, so this discrepancy should be reviewed when rerunning from scratch.
+- Resolver summary and dataset validation are aligned for the final balanced_1000_v1 artifacts.
 - Some older pilot artifacts (balanced_50_pilot_v1) show a failed path due to missing evidence, while the successful pilot results come from balanced_1000_v1_pilot.
 
 ## Future Improvements (Implied by Current Repo)
