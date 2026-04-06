@@ -214,3 +214,11 @@ Evidence resolution requires FEVER wiki shard files matching:
 - `wiki-pages/wiki-pages/wiki-*.jsonl`
 
 If these files are missing, evidence cannot be resolved, validation will fail for missing `gold_evidence`, and model execution should not proceed.
+
+## Repository housekeeping
+
+Legacy `*_large_v1_clean` artifacts were moved out of the repository root to:
+
+- `archive_old_pipeline/legacy_large_v1_clean/`
+
+This keeps active balanced experiment files in root while preserving older files for traceability.
