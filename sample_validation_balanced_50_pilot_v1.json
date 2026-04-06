@@ -1,0 +1,13 @@
+{
+  "input_file": "shared_task_dev.jsonl",
+  "seed": 42,
+  "per_label_requested": 25,
+  "total_rows": 50,
+  "label_counts": {
+    "Refuted": 25,
+    "Supported": 25
+  },
+  "output_source_csv": "fever_balanced_50_pilot_v1_source.csv",
+  "output_tracker_csv": "experiment_tracker_balanced_50_pilot_v1.csv",
+  "output_provenance_csv": "sample_provenance_balanced_50_pilot_v1.csv"
+}

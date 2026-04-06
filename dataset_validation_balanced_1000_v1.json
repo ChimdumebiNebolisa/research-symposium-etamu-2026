@@ -1,0 +1,16 @@
+{
+  "input_csv": "experiment_tracker_with_evidence_balanced_1000_v1.csv",
+  "source_rows": 1000,
+  "usable_rows": 1000,
+  "unusable_rows": 0,
+  "expected_total": 1000,
+  "expected_per_label": 500,
+  "label_counts": {
+    "Refuted": 500,
+    "Supported": 500
+  },
+  "is_expected_total": true,
+  "is_balanced": true,
+  "ready_for_expansion": true,
+  "unusable_preview": []
+}
