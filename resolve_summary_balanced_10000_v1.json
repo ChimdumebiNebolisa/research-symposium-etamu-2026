@@ -1,0 +1,10 @@
+{
+  "input_csv": "experiment_tracker_balanced_10000_v1.csv",
+  "output_csv": "experiment_tracker_with_evidence_balanced_10000_v1.csv",
+  "wiki_pattern": "wiki-pages\\wiki-pages\\wiki-*.jsonl",
+  "drop_unresolved": false,
+  "input_rows": 10000,
+  "written_rows": 10000,
+  "unresolved_count": 0,
+  "unresolved_preview": []
+}
