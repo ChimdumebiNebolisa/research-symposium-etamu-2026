@@ -29,16 +29,10 @@ Full-sample extraction artifacts:
 - `sample_provenance_balanced_1000_v1.csv`
 - `sample_validation_balanced_1000_v1.json`
 
-Pilot extraction artifacts (separated):
-
-- `fever_balanced_50_pilot_v1_source.csv`
-- `experiment_tracker_balanced_50_pilot_v1.csv`
-- `sample_provenance_balanced_50_pilot_v1.csv`
-- `sample_validation_balanced_50_pilot_v1.json`
+Pilot extraction artifacts (legacy `balanced_50_pilot_v1`) were removed during cleanup because they are superseded by `balanced_1000_v1_pilot` and `balanced_10000_v1` workflows.
 
 Validation artifacts before expansion:
 
-- `dataset_validation_balanced_50_pilot_v1.json`
 - `dataset_validation_balanced_1000_v1.json`
 
 ## 3) Current blocker (execution not yet possible)
